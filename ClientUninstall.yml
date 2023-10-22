@@ -1,29 +1,4 @@
----
-# -----------------------------------------------------------------#
-#   ProjectClean  
-#
-# This playbook will remove all schedule tasks and related  
-# files for the windows eventlog archive project. 
-#         + Remove upload powwershell script
-#         + Logging Transfer Solution - Schedule Task
-#         + Remove created registry key 
-#         + Remove job logs        
-#         
-# ----------------------------------------------------------------#
-# Create variables to connect through jump host to target machines
-- name: Role ensures that the socks tunnel is setup
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  
-  tasks:
-    - include_role:
-        name: ansible-role-event-socks-tunnel
-      vars:
-        acc_id: "{{ blueid_shortcode }}"
-        transaction_id: "{{ tower_job_id }}"
-      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
-      
+---  
 - name: Uninstall the Logging Transfer Solution
   hosts: all
   gather_facts: false

@@ -1,25 +1,4 @@
 ---
-# ---------------------------------------------------------------------------------------------------------#
-# Playbook will add registry settings and then scheduled task to upload evtx files to central location.
-#
-#  Important:  storage_user, storage_password and env_selection is add to the job template 
-#              survey for the playbook to run.
-#
-# ---------------------------------------------------------------------------------------------------------#
-# Create variables to connect through jump host to target machines
-- name: Role ensures that the socks tunnel is setup
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  
-  tasks:
-    - include_role:
-        name: ansible-role-event-socks-tunnel
-      vars:
-        acc_id: "{{ blueid_shortcode }}"
-        transaction_id: "{{ tower_job_id }}"
-      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
-
 # Install the Logging Transfer Solution 
 - name: Install the Logging Transfer Solution
   gather_facts: false

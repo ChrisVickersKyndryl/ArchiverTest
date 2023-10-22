@@ -1,0 +1,88 @@
+#
+#  Important:  env_selection is add to the job template survey. (dev,test,prod)
+# 
+# Set variables
+- set_fact:
+    kyndryl_folder: 'C:\Kyndryl\'                        # Local tempory Kyndryl folder location
+    upload_script: 'UploadFiles.ps1'                     # Powershell script to upload log files 
+
+# When Dev environment set destination folder   
+- name: Set Dev destination folder
+  set_fact:
+    dest_folder: '\\tldbkpprod0201.melb.ad\wineventlogs_nonprod\Dev'
+  run_once: true
+  when: env_selection == 'dev'
+    
+# When Test environment set destination folder   
+- name: Set Test destination folder
+  set_fact:
+    dest_folder: '\\tldbkpprod0201.melb.ad\wineventlogs_nonprod\Test'
+  run_once: true
+  when: env_selection == 'test'
+
+# When Prod environment set destination folder   
+- name: Set Production destination folder
+  set_fact:
+    dest_folder: '\\tldbkpprod0201.melb.ad\wineventlogs_prod'
+  run_once: true
+  when: env_selection == 'prod'
+    
+# Generate schedule Task start time with a random minute   
+- name: Create start time with a random minute value 2 digits after 11 pm
+  set_fact:
+    random_min: "2023-07-13T23:{{ '%02d' | format( 59 | random ) }}:00"
+  run_once: true    
+
+# Check for script folder 
+- name: Kyndryl folder check
+  win_stat:
+    path: "{{ kyndryl_folder }}"
+  register: folder_check
+
+# Create script folder if it does not exist
+- name: Create Kyndryl folder if it does not exist
+  win_file:
+    path: "{{ kyndryl_folder }}"
+    state: directory
+  when: folder_check.stat.exists == false
+
+# Copy upload archive powershell file to script folder
+- name: Copy upload powershell script to the kyndryl folder
+  win_copy:
+    src: "scripts/{{ upload_script }}"
+    dest: "{{ kyndryl_folder }}{{ upload_script }}"
+       
+# Get information so the schedule task so we can see if it already exists 
+- name: Get information about a schedule task
+  win_scheduled_task_stat:
+    name: "Logging Transfer Solution"
+  register: taskStat
+
+# Remove task schedule if it exists        
+- name: Delete scheduled task is exists
+  win_scheduled_task:
+    name: "Logging Transfer Solution"
+    state: absent
+  when: taskStat.task_exists == true
+
+# Create a windows schedule task to run the upload script
+- name: Create scheduled task to upload logs
+  win_scheduled_task:
+    name: "Logging Transfer Solution"
+    description: "Scheduled task created by Ansible"
+    actions:
+    - path: powershell.exe
+      arguments: >
+        -File "{{ kyndryl_folder }}{{ upload_script }}"
+        -ShareLocation {{ dest_folder }}
+    state: present
+    enabled: yes
+    runlevel: "highest"
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    logon_type: password
+    allow_demand_start: true
+    hidden: yes
+    triggers:
+    - type: daily
+      start_boundary: "{{ random_min }}" 

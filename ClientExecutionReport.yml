@@ -1,0 +1,103 @@
+---
+# ----------------------------------------------------------------------------------------------#
+#   Excution Report 
+#
+# This will produce a report on the Logging Transfer Solution schedule task.
+#
+#  Important:  destination_email is add to the job template variables
+#
+# ----------------------------------------------------------------------------------------------#
+# Create variables to connect through jump host to target machines
+- name: Role ensures that the socks tunnel is setup
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - include_role:
+        name: ansible-role-event-socks-tunnel
+      vars:
+        acc_id: "{{ blueid_shortcode }}"
+        transaction_id: "{{ tower_job_id }}"
+      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
+      
+- name: Create a report of event log archive schedule tasks
+  hosts: all
+  gather_facts: true
+  
+  tasks:    
+    
+    # Get the windows schedule stats 
+    - name: Get information about a task in the root folder
+      win_scheduled_task_stat:
+        name: "Logging Transfer Solution"
+      register: taskStat
+    
+    # Build data if the schedule task does not exists  
+    - name: Set overall status if bad
+      set_fact:
+        overall_status: "Bad"
+        file_data: "<tr class='badData'><td>{{ ansible_hostname }}</td><td colspan=2>No Schedule Task exists to upload event log archives.</td></tr>"
+      when: taskStat.task_exists == false
+
+    # Build data if the schedule last result not successful 
+    - name: Set overall status if bad
+      set_fact:
+        overall_status: "Bad"
+        file_data: "<tr class='badData'><td>{{ ansible_hostname }}</td><td>{{ taskStat.state.last_run_time }}</td><td>{{ taskStat.state.last_task_result }}</td></tr>"
+      when: 
+        - taskStat.state is defined
+        - (taskStat.state.last_task_result != 0 or taskStat.state.last_task_result != 267009) and taskStat.task_exists == true
+    
+     # build data if the schedule last result was successful 
+    - name: Set overall status if good
+      set_fact:
+        overall_status: "Good"
+        file_data: "<tr class='goodData'><td>{{ ansible_hostname }}</td><td>{{ taskStat.state.last_run_time }}</td><td>{{ taskStat.state.last_task_result }}</td></tr>"
+      when:
+        - taskStat.state is defined
+        - (taskStat.state.last_task_result == 0 or taskStat.state.last_task_result == 267009) and taskStat.task_exists == true
+          
+    # Create a result file for host 
+    - name: Write task info to file
+      copy:
+        content: "{{ file_data }}"
+        dest: "{{ ansible_hostname }}_Report.htmlsegment"  
+      delegate_to: localhost
+     
+    # Combine all host results into one HTML file 
+    - name: Combine htmlsegment files
+      assemble:
+        src: "./"
+        dest: LogReport.html
+        regexp: .*_Report.htmlsegment
+      run_once: true
+      delegate_to: localhost 
+    
+    # Setup data for the email body
+    - name: Set variables for email body template 
+      set_fact:
+        var_date_now: "{{ ansible_date_time.date }} {{ ansible_date_time.time }}"
+        schedule_data: "{{ lookup('file', 'LogReport.html') }}"        
+      run_once: true
+      delegate_to: localhost
+      
+    # Read template and combine with the variables before
+    - name: Read template and combine with the variables before
+      set_fact:
+        email_body: "{{ lookup('template', 'templates/EmailBodyHTML.j2') }}"
+      run_once: true
+      delegate_to: localhost
+      
+     # Email report
+    - name: Email information
+      mail:
+        host: 100.80.69.5
+        port: 25
+        to: "{{ destination_email }}"
+        from: ansible@kyndryl.com
+        subject: "Event Log Archive Report - {{ var_date_now }}"
+        body: "{{ email_body }}"
+        subtype: html
+      delegate_to: localhost
+      run_once: true

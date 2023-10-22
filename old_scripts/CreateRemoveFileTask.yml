@@ -1,0 +1,146 @@
+---
+# ------------------------------------------------------------------------------------------------#
+#   Create Remove file Schedule Task
+#
+# This will create encrypted password file for the remove 
+# file Schedule Task
+#
+#   IMPORTANT - VARABLE + storage_user: ''          # User that access to the storage array
+#                         storage_password: ''      # Users password         
+# -----------------------------------------------------------------------------------------------#
+# Create variables to connect through jump host to target machines
+- name: Role ensures that the socks tunnel is setup
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - include_role:
+        name: ansible-role-event-socks-tunnel
+      vars:
+        acc_id: "{{ blueid_shortcode }}"
+        transaction_id: "{{ tower_job_id }}"
+      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
+      
+- name: Create removal process for Windows event log archive.
+  hosts: all
+  gather_facts: false
+  vars:
+    kyndryl_folder: 'C:\Kyndryl\'                   # Temp location to run script from
+    remove_script: 'RemoveFiles.ps1'                # Powershell script to create encrypted file
+    password_file: 'Credential_storage.enc'         # File to store encrypted password in
+    script_name: 'CreateEncryptedFile.ps1'          # Powershell script to create encrypted file
+
+  tasks:
+   
+    # Check for the script folder to store scripts into exist
+    - name: Check script folder exists
+      win_stat:
+        path: "{{ kyndryl_folder }}"
+      register: folder_check
+
+    # Create temp folder if it does not exist
+    - name: Create script folder if it does not exist
+      win_file:
+        path: "{{ kyndryl_folder }}"
+        state: directory
+      when: folder_check.stat.exists == false
+    
+    # ------  Create storage encrypted password  ----
+    # Copy powershell script to temp folder on server
+    - name: Copy encrypt powershell file to script folder
+      win_copy:
+        src: "./{{ script_name }}"
+        dest: "{{ kyndryl_folder }}{{ script_name }}"
+
+    # Create a windows task schedule to create the encrypted file     
+    - name: Create scheduled task to create encrypted file
+      win_scheduled_task:
+        name: "Create Encrypted File"
+        description: "Scheduled task created by Ansible"
+        actions:
+        - path: powershell.exe
+          arguments: >
+            -File "{{ kyndryl_folder }}{{ script_name }}"
+            -PassString "{{ storage_password }}"
+            -SaveLocation "{{ kyndryl_folder }}{{ password_file }}" 
+        state: present
+        enabled: yes
+        triggers:
+        - type: registration
+        frequency: once
+        unlevel: "highest"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        logon_type: password
+      no_log: True
+ 
+    # Wait for the file to be create be moving on clean up 
+    - name: Wait until the encrypted password file is present
+      win_wait_for:
+        path: "{{ kyndryl_folder }}{{ password_file }}" 
+    
+    # Remove Powershell file 
+    - name: Remove encrypt powershell file
+      win_file:
+        path: "{{ kyndryl_folder }}{{ script_name }}"
+        state: absent
+
+    # Remove the Task schedule        
+    - name: Remove scheduled task after run
+      win_scheduled_task:
+        name: "Create Encrypted File"
+        state: absent
+
+    # ------  Create maintenance schedule  ----
+    # Copy Remove File Powershell script
+    - name: Copy maintenance powershell script 
+      win_copy:
+        src: "./{{ remove_script }}"
+        dest: "{{ kyndryl_folder }}{{ remove_script }}"
+    
+    # Wait for the file to be create be moving on clean up 
+    - name: Wait until the remove script is there
+      win_wait_for:
+        path: "{{ kyndryl_folder }}{{ remove_script }}"
+    
+    # Get information so the schedule task so we can see if it already exists 
+    - name: Get information about a schedule task
+      win_scheduled_task_stat:
+        name: "Maintain archive logs"
+      register: taskStat
+
+    # Remove task schedule if it exists        
+    - name: Delete scheduled task is exists
+      win_scheduled_task:
+        name: "Maintain archive logs"
+        state: absent
+      when: taskStat.task_exists == true
+    
+    # Create a windows task schedule to create the encrypted file     
+    - name: Create scheduled task to run remove file script
+      win_scheduled_task:
+        name: "Maintain archive logs"
+        description: "Scheduled task created by Ansible"
+        actions:
+        - path: powershell.exe
+          arguments: >
+            -File "{{ kyndryl_folder }}{{ remove_script }}"
+            -Days 180
+            -Extension archive*.evtx
+            -StorageUser {{ storage_user }}
+            -EncryptFile {{ kyndryl_folder }}{{ password_file }}
+        state: present
+        enabled: yes
+        run_level: highest
+        unlevel: "highest"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        logon_type: password
+        allow_demand_start: true
+        restart_count: 200
+        restart_interval: PT1M
+        start_when_available: true
+        triggers:
+        - type: daily
+          start_boundary: "2023-09-01T02:01:00"

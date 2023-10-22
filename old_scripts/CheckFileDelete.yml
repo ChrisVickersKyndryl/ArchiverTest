@@ -1,0 +1,73 @@
+---
+# -------------------------------------------------------#
+#   Excution Report 
+#
+# This will produce a report on the event log archive 
+# upload schedule tasks.
+# -------------------------------------------------------#
+# Create variables to connect through jump host to target machines
+- name: Role ensures that the socks tunnel is setup
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - include_role:
+        name: ansible-role-event-socks-tunnel
+      vars:
+        acc_id: "{{ blueid_shortcode }}"
+        transaction_id: "{{ tower_job_id }}"
+      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
+      
+- name: Create an alert if the files are not being deleted
+  hosts: all
+  gather_facts: true
+  
+  tasks:    
+    
+    # Search though log files and look for the word ERROR.
+    - name: Check log files
+      win_shell: |
+        #Folder to check
+        $folder = "{{ The folder }}"
+        $lastWeek = (Get-Date).AddDays(-7)
+
+        # Get all items in folder
+        Get-Childitem -path $folder | Where-Object {
+            # Filter by: are not a container (folder), that were created less than 7 days ago and end in the entension *.log 
+            !$_.PSIsContainer -and $_.Name -Like "*.log" -and  $_.CreationTime -lt $lastWeek
+        } | ForEach-Object {
+            # Read file
+            $content = Get-Content -Path $_.FullName
+            if($content.contains("ERROR"))
+            {   
+                # Write error 
+                Write-Host "ERROR FOUND"
+            }
+        }
+      register: output
+        
+    # Setup data for the email body
+    - name: Set variables for email body template 
+      set_fact:
+        var_date_now: "{{ ansible_date_time.date }} {{ ansible_date_time.time }}"       
+      run_once: true
+      delegate_to: localhost
+        
+    # Email report
+    - name: Email information
+      mail:
+        host: 100.80.69.5
+        port: 25
+        to: "{{ destination_email }}"
+        from: ansible@kyndryl.com
+        subject: Windows Log Archiver Error
+        body: |
+          The windows log archiver has reported an error when deleting old records.
+          
+          The windows log archiver deletes archived logs from the server "XXXXXXX". When the bundled log files exceed 180 days they are deleted. During this process an error event was detected
+          
+          This email was created by the Kyndryl CACF Ansible Server, running a scheduled task.
+        subtype: plain
+      delegate_to: localhost
+      run_once: true

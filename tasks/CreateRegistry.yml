@@ -1,0 +1,64 @@
+#
+#  Important:  storage_user and storage_password is add to the job template survey
+#
+# Set values
+- set_fact:
+    kyndryl_folder: 'C:\Kyndryl\'               # Temp location to run script from
+    script_name: 'CreateRegistry.ps1'           # Powershell script to create encrypted file
+    
+# Check for the Kyndryl folder to store scripts into exist
+- name: Script folder check
+  win_stat:
+    path: "{{ kyndryl_folder }}"
+  register: folder_check
+
+# Create Kyndryl folder if it does not exist
+- name: Create script folder if it does not exist
+  win_file:
+    path: "{{ kyndryl_folder }}"
+    state: directory
+  when: folder_check.stat.exists == false
+        
+# Copy powershell script to temp folder on server
+- name: Copy Powershell file to script folder
+  win_copy:
+    src: "scripts/{{ script_name }}"
+    dest: "{{ kyndryl_folder }}{{ script_name }}"
+
+# Create a windows task schedule to create the encrypted file     
+- name: Create scheduled task to add registry Key and values
+  win_scheduled_task:
+    name: "Create registry values"
+    description: "Scheduled task created by Ansible"
+    actions:
+    - path: powershell.exe
+      arguments: >
+        -File "{{ kyndryl_folder }}{{ script_name }}"
+        -User "{{ storage_user }}"
+        -PlainTxtPass "{{ storage_password }}"
+    state: present
+    enabled: yes
+    triggers:
+    - type: registration
+    frequency: once
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    logon_type: password
+  no_log: True
+
+# Wait for 5 seconds
+- name: sleep for 5 seconds and continue with play
+  win_wait_for:
+    timeout: 5
+        
+# Remove Powershell file 
+- name: Remove Powershell file
+  win_file:
+    path: "{{ kyndryl_folder }}{{ script_name }}"
+    state: absent
+
+# Remove the Task schedule        
+- name: Remove scheduled task
+  win_scheduled_task:
+    name: "Create registry values"
+    state: absent

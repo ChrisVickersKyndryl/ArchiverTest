@@ -1,0 +1,61 @@
+---
+# -----------------------------------------------------------------#
+#   ProjectClean  
+#
+# This playbook will remove all schedule tasks and related  
+# files for the windows eventlog archive project. 
+#         + Remove upload powwershell script
+#         + Logging Transfer Solution - Schedule Task
+#         + Remove created registry key 
+#         + Remove job logs        
+#         
+# ----------------------------------------------------------------#
+# Create variables to connect through jump host to target machines
+- name: Role ensures that the socks tunnel is setup
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - include_role:
+        name: ansible-role-event-socks-tunnel
+      vars:
+        acc_id: "{{ blueid_shortcode }}"
+        transaction_id: "{{ tower_job_id }}"
+      when: jh_ip is defined or jh1_ip is defined  # only if endpoint is behind a jumphost
+      
+- name: Uninstall the Logging Transfer Solution
+  hosts: all
+  gather_facts: false
+  ignore_errors: true 
+  vars:
+    kyndryl_folder: 'C:\Kyndryl\'
+    job_logs: 'EventArchiver.log'
+    upload_file: 'UploadFile.ps1'
+  
+  tasks:
+    # Remove task schedule        
+    - name: Delete scheduled task
+      win_scheduled_task:
+        name: "Logging Transfer Solution"
+        state: absent 
+      
+    # Remove powershell script to upload files
+    - name: Remove Powershell upload archive file
+      win_file:
+        path: "{{ kyndryl_folder }}{{ upload_file }}"
+        state: absent  
+    
+    # Remove Job logs
+    - name: Remove Job logs
+      win_file:
+        path: "{{ kyndryl_folder }}{{ job_logs }}"
+        state: absent 
+
+    # Remove registry settings
+    - name: Remove registry keys
+      win_shell: |
+        # Check if registry folder exists. If not, add it 
+        if (Test-Path -Path 'HKLM:\SOFTWARE\Kyndryl') {
+            Remove-Item -Path 'HKLM:\SOFTWARE\Kyndryl'
+        }

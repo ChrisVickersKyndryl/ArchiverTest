@@ -93,7 +93,7 @@ function Set-Drive {
     }
 
     # If a drive already exists with the same name but a different address, end program and log error
-    Set-Log -Content "- Error running script. A drive called $($global.$drvName) already exists. Program ended."
+    Set-Log -Content "- Error running script. A drive called $($global:drvName) already exists. Program ended."
     Exit 10
 }
 

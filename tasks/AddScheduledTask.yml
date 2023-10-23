@@ -74,7 +74,7 @@
     - path: powershell.exe
       arguments: >
         -File "{{ kyndryl_folder }}{{ upload_script }}"
-        -ShareLocation {{ dest_folder }}
+        -ShareLocation "{{ dest_folder }}"
     state: present
     enabled: yes
     runlevel: "highest"

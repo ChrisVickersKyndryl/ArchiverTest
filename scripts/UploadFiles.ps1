@@ -101,20 +101,20 @@ function Set-Drive {
 function Copy-ArchiveFiles {
 
     # Check if folder exists. If it doesn't create it
-    if (-Not $(Test-Path -Path "$($global:drvName):\$env:computername")) {
-        New-Item -ItemType Directory -Path "$($global:drvName):\$env:computername"
+    if (-Not $(Test-Path -Path "$($global:drvName):\$($env:computername)")) {
+        New-Item -ItemType Directory -Path "$($global:drvName):\$($env:computername)"
     }
 
     # Get all evtx files in folder and copy over to remote location
     Get-ChildItem -Path $global:logLocation -File -Filter "*.evtx" | ForEach-Object {
-        Move-Item -Path $_.FullName -Destination "$($global:drvName):\$env:computername\$($_.Name)"
+        Move-Item -Path $_.FullName -Destination "$($global:drvName):\$($env:computername)\$($_.Name)"
 
         # Check if new file was made
         if (-Not $(Test-Path -Path "$($global:drvName):\$env:computername\$($_.Name)")) {
-            Set-Log -Content "ERROR: File `"$($global:drvName):\$env:computername\$($_.Name)`" was not created."
+            Set-Log -Content "ERROR: File `"$($global:drvName):\$($env:computername)\$($_.Name)`" was not created."
         }
         else {
-            Set-Log -Content "File `"$($global:drvName):\$env:computername\$($_.Name)`" successfully created."
+            Set-Log -Content "File `"$($global:drvName):\$($env:computername)\$($_.Name)`" successfully created."
         }
 
         # Check if original still exists

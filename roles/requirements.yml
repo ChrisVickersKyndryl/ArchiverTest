@@ -1,7 +1,0 @@
----
-# Wrapper common roles
-
-- name: ansible-role-event-socks-tunnel
-  scm: 'git'
-  src: https://github.kyndryl.net/Continuous-Engineering/ansible-role-event-socks-tunnel.git
-   

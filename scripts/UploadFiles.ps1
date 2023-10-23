@@ -106,24 +106,30 @@ function Copy-ArchiveFiles {
         New-Item -ItemType Directory -Path "$($global:drvName):\$($env:computername)"
     }
 
+    $date = $(Get-Date -format "yyyyMMdd_HHmmss")
     # Get all evtx files in folder and copy over to remote location
     Get-ChildItem -Path $global:logLocation -File -Filter "*.evtx" | ForEach-Object {
-        Move-Item -Path $_.FullName -Destination "$($global:drvName):\$($env:computername)\$($_.Name)"
+        $newName = "$($date)_$($_.Name)"
 
-        # Check if new file was made
-        if (-Not $(Test-Path -Path "$($global:drvName):\$env:computername\$($_.Name)")) {
-            Set-Log -Content "ERROR: File `"$($global:drvName):\$($env:computername)\$($_.Name)`" was not created."
+        Set-Log -Content "Copying from `"$($_.FullName)`" to `"$($global:drvName):\$($env:computername)\$($newName)`""
+        Copy-Item -Path $_.FullName -Destination "$($global:drvName):\$($env:computername)\$($newName)"
+
+        # Check new item exists
+        if (-Not $(Test-Path -Path "$($global:drvName):\$($env:computername)\$($newName)")) {
+            Set-Log -Content "ERROR: File `"$($global:drvName):\$($env:computername)\$($newName)`" was not created."
+            return
+        }
+
+        # Try to delete original file
+        Remove-Item -Path $_.FullName -Confirm:$false
+
+
+        # Check if old file was removed
+        if (Test-Path -Path $_.FullName) {
+            Set-Log -Content "ERROR: File `"$($_.FullName)`" could not be deleted."
         }
         else {
-            Set-Log -Content "File `"$($global:drvName):\$($env:computername)\$($_.Name)`" successfully created."
-        }
-
-        # Check if original still exists
-        if ($(Test-Path -Path $_.FullName)) {
-            Set-Log -Content "ERROR: File `"$($_.FullName)`" still exists Error moving file."
-        }
-        else {
-            Set-Log -Content "File `"$($_.FullName)`" successfully removed from drive"
+            Set-Log -Content "File `"$($_.FullName)`" was removed from host"
         }
     }
 }

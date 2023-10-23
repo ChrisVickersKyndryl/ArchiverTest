@@ -27,7 +27,7 @@ param(
 )
 
 # Set variables
-$global:shareLocation = $ShareLocation
+$global:shareLocation = $ShareLocation                          # Set share location from param value
 $global:jobLog = "C:\Kyndryl\EventArchiver.log"                 # Individual job log 
 $global:drvName = "KyndrylLoggerDrive"                          # Drive name                                                                              
 $global:registryLoc = 'HKLM:\SOFTWARE\Kyndryl'                  # Registry location

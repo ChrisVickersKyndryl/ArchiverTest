@@ -23,10 +23,11 @@
 #>
 
 param(
-    $global:ShareLocation = ""
+    $ShareLocation = ""
 )
 
 # Set variables
+$global:shareLocation = $ShareLocation
 $global:jobLog = "C:\Kyndryl\EventArchiver.log"                 # Individual job log 
 $global:drvName = "KyndrylLoggerDrive"                          # Drive name                                                                              
 $global:registryLoc = 'HKLM:\SOFTWARE\Kyndryl'                  # Registry location
@@ -77,7 +78,7 @@ function Get-CredentialsFromRegistry {
 # Map drive (if not already mapped)
 function Set-Drive {
     # #Check if drive is already mapped. If yes, use it
-    if($(Get-PSDrive | Where-Object { $_.Name -eq $($global:drvName) -and $_.Root -eq $($global:ShareLocation)}).Count -ne 0){
+    if($(Get-PSDrive | Where-Object { $_.Name -eq $($global:drvName) -and $_.Root -eq $($global:shareLocation)}).Count -ne 0){
         Set-Log -Content '- Drive already mapped. Using existing drive'
         return
     }
@@ -85,10 +86,10 @@ function Set-Drive {
     # If drive not being used add drive and add to output file
     $val = $(Get-PSDrive | Where-Object { $_.Name -eq $($global:drvName) }).Count
     if( $val -eq 0 ) {
-        Set-Log -Content "Mapping drive `"$($global:drvName)`" to share `"$($global:ShareLocation)`""
+        Set-Log -Content "Mapping drive `"$($global:drvName)`" to share `"$($global:shareLocation)`""
 
         # Map drive. Parameters are taken from the logged in user if scheduled task
-        New-PSDrive -Name $($global:drvName) -Root $($global:ShareLocation) -PSProvider "FileSystem" -Scope "Script" -Credential $(Get-CredentialsFromRegistry) | Out-Null
+        New-PSDrive -Name $($global:drvName) -Root $($global:shareLocation) -PSProvider "FileSystem" -Scope "Script" -Credential $(Get-CredentialsFromRegistry) | Out-Null
         return
     }
 

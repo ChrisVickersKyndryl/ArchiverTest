@@ -106,15 +106,18 @@ function Copy-ArchiveFiles {
         New-Item -ItemType Directory -Path "$($global:drvName):\$($env:computername)"
     }
 
-    $date = $(Get-Date -format "yyyyMMdd_HHmmss")
     # Get all evtx files in folder and copy over to remote location
+    # Set the date, to prevent conflcits with naming
+    $date = $(Get-Date -format "yyyyMMdd_HHmmss")
     Get-ChildItem -Path $global:logLocation -File -Filter "*.evtx" | ForEach-Object {
+        # set the name of the file
         $newName = "$($date)_$($_.Name)"
 
+        # Copy file to new location
         Set-Log -Content "Copying from `"$($_.FullName)`" to `"$($global:drvName):\$($env:computername)\$($newName)`""
         Copy-Item -Path $_.FullName -Destination "$($global:drvName):\$($env:computername)\$($newName)"
 
-        # Check new item exists
+        # Check new file exists. If not, go to next file (do not delete the old file)
         if (-Not $(Test-Path -Path "$($global:drvName):\$($env:computername)\$($newName)")) {
             Set-Log -Content "ERROR: File `"$($global:drvName):\$($env:computername)\$($newName)`" was not created."
             return
@@ -123,8 +126,7 @@ function Copy-ArchiveFiles {
         # Try to delete original file
         Remove-Item -Path $_.FullName -Confirm:$false
 
-
-        # Check if old file was removed
+        # Check if the old file was removed
         if (Test-Path -Path $_.FullName) {
             Set-Log -Content "ERROR: File `"$($_.FullName)`" could not be deleted."
         }

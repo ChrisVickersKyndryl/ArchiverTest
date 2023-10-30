@@ -12,4 +12,4 @@
 
     # Output information
     - debug:
-        msg: "Powershell version: {{ ps_version.std_out }}"
+        msg: "Powershell version: {{ ps_version.stdout }}"

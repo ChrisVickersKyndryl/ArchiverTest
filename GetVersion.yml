@@ -13,3 +13,4 @@
     # Output information
     - debug:
         msg: "Powershell version: {{ ps_version.stdout }}"
+      when: ps_version.stdout | int >= 5
